@@ -1,0 +1,73 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "research",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b68c8936-434c-48a2-aabf-4af2ae433b07",
+      "name": "Webhook",
+      "webhookId": "bf37238e-3491-4990-8fa3-fc792efa46e6"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"llama-3.3-70b-versatile\", \"messages\": [{\"role\": \"user\", \"content\": \"Say hello and confirm you're working.\"}]}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        208,
+        -32
+      ],
+      "id": "1313fccf-82d1-4af7-803d-f908eb8d4f67",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "UEYwwxvqURy9kj2y",
+          "name": "Header Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "7ac3d0cc-33a3-48e3-bdfb-a92468c611eb",
+  "meta": {
+    "instanceId": "6e1157a2956c12c2b36f9d72c1950e2fdb1c79d5927dc89fc414eadb6d1c953d"
+  },
+  "nodeGroups": [],
+  "id": "PWvO2dYjyIiuTeMU",
+  "tags": []
+}
