@@ -10,8 +10,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        0,
-        0
+        -32,
+        80
       ],
       "id": "b68c8936-434c-48a2-aabf-4af2ae433b07",
       "name": "Webhook",
@@ -25,17 +25,135 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"model\": \"llama-3.3-70b-versatile\", \"messages\": [{\"role\": \"user\", \"content\": \"Say hello and confirm you're working.\"}]}",
+        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a research agent. Given a research topic and subtasks, identify 3-5 relevant candidate options (models, tools, or approaches) with brief supporting details for each. Respond ONLY with valid JSON in this format: {\\\"models\\\": [{\\\"name\\\": \\\"...\\\", \\\"details\\\": \\\"...\\\"}]}\"}, {role: \"user\", content: \"Research topic and subtasks: \" + $json.choices[0].message.content}]}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        208,
-        -32
+        528,
+        -128
+      ],
+      "id": "47fe01a2-bcfd-46db-84a6-332470dd8b2e",
+      "name": "Research Agent",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "UEYwwxvqURy9kj2y",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\": \"llama-3.3-70b-versatile\", \"messages\": [{\"role\": \"system\", \"content\": \"You are a research planning agent. Given a research question, break it into 4-6 clear research subtasks. Respond ONLY with valid JSON in this exact format, no extra text: {\\\"topic\\\": \\\"...\\\", \\\"subtasks\\\": [\\\"...\\\", \\\"...\\\"]}\"}, {\"role\": \"user\", \"content\": \"{{ $json.body.question }}\"}]}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        192,
+        80
       ],
       "id": "1313fccf-82d1-4af7-803d-f908eb8d4f67",
-      "name": "HTTP Request",
+      "name": "Planner",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "UEYwwxvqURy9kj2y",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a technical analysis agent. Given a research topic and subtasks, analyze technical specifications: parameters, context length, VRAM/hardware requirements, quantization support, and inference frameworks. Focus on modern open-source LLMs like Llama, Mistral, Qwen, Gemma, DeepSeek. Respond ONLY with valid JSON in this format: {\\\"technical_comparison\\\": [{\\\"model\\\": \\\"...\\\", \\\"parameters\\\": \\\"...\\\", \\\"context_length\\\": \\\"...\\\", \\\"vram_requirement\\\": \\\"...\\\", \\\"frameworks\\\": \\\"...\\\"}]}\"}, {role: \"user\", content: \"Research topic and subtasks: \" + $json.choices[0].message.content}]}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        528,
+        80
+      ],
+      "id": "72ee36e5-2531-4ec0-b5b4-342df1753342",
+      "name": "Technical Agent",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "UEYwwxvqURy9kj2y",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a cost and performance analysis agent. Given a research topic and subtasks about LLMs, analyze what hardware profile each model realistically fits (e.g. 8GB VRAM, 16GB VRAM, CPU-only), expected inference speed, and quantization tradeoffs. Focus on modern open-source LLMs like Llama, Mistral, Qwen, Gemma, DeepSeek. Respond ONLY with valid JSON in this format: {\\\"recommendations\\\": [{\\\"model\\\": \\\"...\\\", \\\"hardware_fit\\\": \\\"...\\\", \\\"reasoning\\\": \\\"...\\\"}]}\"}, {role: \"user\", content: \"Research topic and subtasks: \" + $json.choices[0].message.content}]}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        528,
+        272
+      ],
+      "id": "6313f1e2-de3c-424b-91e5-9db0a879e3aa",
+      "name": "Cost Performance Agent",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "UEYwwxvqURy9kj2y",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        64
+      ],
+      "id": "83511dd4-f232-435a-8998-7726a267d313",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a fact-checking agent. You will receive findings from three research agents: a general researcher, a technical analyst, and a cost/performance analyst. Compare their claims for consistency. For each model mentioned, note whether the agents agree or conflict on key facts. Respond ONLY with valid JSON in this format: {\\\"verified_findings\\\": [{\\\"model\\\": \\\"...\\\", \\\"agreement_status\\\": \\\"...\\\", \\\"notes\\\": \\\"...\\\"}]}\"}, {role: \"user\", content: \"Research findings: \" + $input.all().map(item => item.json.choices[0].message.content).join(\"\\n\\n\")}]}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1184,
+        80
+      ],
+      "id": "a129edcd-7300-402c-aba0-8ff3158fee47",
+      "name": "Fact Checker",
+      "executeOnce": true,
       "credentials": {
         "httpHeaderAuth": {
           "id": "UEYwwxvqURy9kj2y",
@@ -50,7 +168,72 @@
       "main": [
         [
           {
-            "node": "HTTP Request",
+            "node": "Planner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Planner": {
+      "main": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Technical Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Cost Performance Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Technical Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Research Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cost Performance Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Fact Checker",
             "type": "main",
             "index": 0
           }
@@ -63,7 +246,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "7ac3d0cc-33a3-48e3-bdfb-a92468c611eb",
+  "versionId": "d823349d-2c9b-46bb-a0a5-ad211b5767f9",
   "meta": {
     "instanceId": "6e1157a2956c12c2b36f9d72c1950e2fdb1c79d5927dc89fc414eadb6d1c953d"
   },
