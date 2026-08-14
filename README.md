@@ -1,6 +1,6 @@
 # Multi-Agent Research System
 
-An AI-powered research pipeline that takes a user's question, breaks it into subtasks, investigates it from three different angles in parallel using specialized agents grounded in real web search, cross-checks their findings for conflicts, and synthesizes everything into a structured, honest research report — served through a full-stack app (React + Node.js + n8n).
+An AI-powered research pipeline that takes a user's question, breaks it into subtasks, investigates it from three different angles in parallel using specialized agents grounded in real web search, cross-checks their findings for conflicts, and synthesizes everything into a structured, honest research report — served through a full-stack app (React + Node.js + n8n) with persistent research history.
 
 Built as a hands-on learning project to understand agentic orchestration, n8n workflow automation, RAG-style grounding, and multi-agent system design — not from a template, but debugged and built step by step.
 
@@ -17,11 +17,11 @@ Built as a hands-on learning project to understand agentic orchestration, n8n wo
                     |
                     v
             Node.js/Express API
-              POST /api/research
-                    |
-                    v
-              n8n (Webhook)
-                    |
+        POST /api/research  GET /api/history
+                    |            |
+                    v            v
+              n8n (Webhook)  PostgreSQL (Neon)
+                    |         (research_sessions)
                     v
               Research Planner
            (breaks question into subtasks)
@@ -48,9 +48,6 @@ Built as a hands-on learning project to understand agentic orchestration, n8n wo
                     v
             Final Report Agent
       (structured Markdown report)
-                    |
-                    v
-              PostgreSQL       <- in progress
 ```
 
 ## Tech stack (zero-cost)
@@ -62,7 +59,7 @@ Built as a hands-on learning project to understand agentic orchestration, n8n wo
 | Web search grounding | Tavily API (free tier) |
 | Backend | Node.js + Express |
 | Frontend | React + Vite |
-| Database | PostgreSQL *(planned)* |
+| Database | PostgreSQL (Neon, free tier) |
 | Version control | Git + GitHub |
 
 ## Current status
@@ -76,10 +73,12 @@ Built as a hands-on learning project to understand agentic orchestration, n8n wo
 - [x] Cost/Performance agent explicitly flags estimated vs. sourced hardware figures (`is_estimated` field) rather than presenting guesses as fact
 - [x] Node.js/Express backend wrapping the n8n pipeline with a clean `{ question, report }` API contract
 - [x] React frontend — question input, loading state, and rendered Markdown report display
-- [ ] PostgreSQL persistence (research history)
+- [x] PostgreSQL (Neon) persistence — every research session is saved automatically (`POST /api/research`)
+- [x] History retrieval endpoint (`GET /api/history`) — returns the 20 most recent sessions
+- [ ] History UI in the frontend (list past sessions, click to reload a saved report) — in progress
 - [ ] Graceful handling of non-comparison-style questions (see Known limitations)
 
-**The full stack is functional end to end**: a question typed into the React UI is sent through the backend to n8n, runs the complete grounded, fact-checked pipeline, and renders back as a formatted report — typically in 25-30 seconds, reflecting the ~4 sequential and 3 parallel AI/search operations involved per request.
+**The full stack is functional end to end**: a question typed into the React UI is sent through the backend to n8n, runs the complete grounded, fact-checked pipeline, saves the result to Postgres, and renders back as a formatted report — typically in 25-30 seconds, reflecting the ~4 sequential and 3 parallel AI/search operations involved per request.
 
 ## Example output (excerpt)
 
@@ -101,14 +100,16 @@ This section exists because these were genuinely non-obvious bugs, and documenti
 
 **4. Webhook responding before the pipeline finished.** By default, n8n's webhook responds immediately on receipt, before the workflow actually runs — meaning the API returned `{"message": "Workflow was started"}` instead of the real report. Fixed by setting the Webhook node's Respond option to "When Last Node Finishes," so the HTTP response waits for the entire pipeline (including the Final Report Agent) to complete.
 
-**5. (In progress) Off-topic queries can fail the pipeline.** Since the Planner, agents, and Tavily search queries are all tuned around comparison-style research questions ("best X for Y"), an unrelated or non-comparison question can produce a differently-shaped response that breaks a downstream node expecting a specific structure. Currently being investigated and documented as a known limitation.
+**5. (Known limitation) Off-topic queries can fail the pipeline.** Since the Planner, agents, and Tavily search queries are all tuned around comparison-style research questions ("best X for Y"), an unrelated or non-comparison question can produce a differently-shaped response that breaks a downstream node expecting a specific structure.
+
+**6. Groq free-tier daily token limit.** A single full pipeline run uses ~2,000-3,000 tokens across all its LLM calls; Groq's free tier caps at 100,000 tokens/day, which is roughly 30-50 full runs/day — enough for normal use, but easy to exhaust during a long testing/debugging session. The limit resets daily; no workaround was needed beyond waiting, since OpenRouter's free tier (50 requests/day) would actually be hit faster given this pipeline's call volume per request.
 
 ## Known limitations
 
 - Very recently released models sometimes lack well-documented hardware/VRAM benchmarks, since community testing lags behind release dates. The system surfaces this as an explicit estimate flag or "no data" note rather than guessing — an intentional design choice, not a bug.
 - No authentication, deployment, or production hardening — this is a local/portfolio-scale MVP, not a production system.
-- Currently tuned and tested primarily for comparison-style research questions ("best X for Y", "compare A vs B"). Off-topic or non-comparison questions (e.g. purely opinion-based or single-fact queries) can cause a pipeline failure rather than a graceful fallback — see debugging note #5.
-- Research history is not yet persisted; each session is stateless until PostgreSQL integration is complete.
+- Currently tuned and tested primarily for comparison-style research questions ("best X for Y", "compare A vs B"). Off-topic or non-comparison questions can cause a pipeline failure rather than a graceful fallback — see debugging note #5.
+- Free-tier API limits (Groq token cap, Tavily search credits) mean heavy back-to-back testing can temporarily pause functionality — see debugging note #6.
 
 ## Setup
 
@@ -116,12 +117,24 @@ This section exists because these were genuinely non-obvious bugs, and documenti
 2. Import `n8n-workflows/*.json` into your own n8n instance (Cloud or self-hosted), and Publish/activate it.
 3. Create a free Groq API key at [console.groq.com](https://console.groq.com) and add it as a Header Auth credential in n8n (`Authorization: Bearer <your-key>`).
 4. Create a free Tavily API key at [tavily.com](https://tavily.com) for web search grounding.
-5. In `backend/`, create a `.env` with `N8N_WEBHOOK_URL` (your n8n production webhook URL) and `PORT`. Run `npm install` then `node server.js`.
-6. In `frontend/`, run `npm install` then `npm run dev`.
-7. Open the frontend, type a research question, and click Research.
+5. Create a free Postgres database at [neon.tech](https://neon.tech) and run the schema below.
+6. In `backend/`, create a `.env` with `N8N_WEBHOOK_URL`, `PORT`, and `DATABASE_URL` (your Neon connection string). Run `npm install` then `node server.js`.
+7. In `frontend/`, run `npm install` then `npm run dev`.
+8. Open the frontend, type a research question, and click Research.
+
+### Database schema
+
+```sql
+CREATE TABLE research_sessions (
+  id SERIAL PRIMARY KEY,
+  question TEXT NOT NULL,
+  report TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
 
 ## Roadmap
 
-- PostgreSQL research history
+- Research history UI in the frontend
 - Graceful fallback/validation for non-comparison-style questions
 - Move Tavily key into a proper n8n credential (currently inline for simplicity during development)

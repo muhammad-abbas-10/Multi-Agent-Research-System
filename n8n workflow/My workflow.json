@@ -5,6 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "research",
+        "responseMode": "lastNode",
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",
@@ -370,12 +371,13 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate"
+    "binaryMode": "separate",
+    "availableInMCP": false
   },
-  "versionId": "6e8e1bc9-072a-40df-a6fe-c6429a9f30f1",
+  "versionId": "184f9aae-7d35-42d4-a895-bd5eec3fb70e",
   "meta": {
     "instanceId": "6e1157a2956c12c2b36f9d72c1950e2fdb1c79d5927dc89fc414eadb6d1c953d"
   },
