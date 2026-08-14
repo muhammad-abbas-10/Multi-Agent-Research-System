@@ -160,6 +160,32 @@
           "name": "Header Auth account"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a research report writer. Using ONLY the verified findings provided, write a clear, well-structured research report in Markdown. Include these sections: 1. Executive Summary 2. Model Comparison 3. Technical Analysis 4. Hardware/Performance Fit 5. Recommendation by hardware profile 6. Limitations. Do not invent facts beyond what's given. Note any conflicting findings honestly rather than picking one side.\"}, {role: \"user\", content: \"Verified findings: \" + $json.choices[0].message.content}]}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1440,
+        80
+      ],
+      "id": "255236dc-9f3c-48ce-8c86-20f69f22cb5a",
+      "name": "Final Report",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "UEYwwxvqURy9kj2y",
+          "name": "Header Auth account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -239,6 +265,17 @@
           }
         ]
       ]
+    },
+    "Fact Checker": {
+      "main": [
+        [
+          {
+            "node": "Final Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -246,7 +283,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "d823349d-2c9b-46bb-a0a5-ad211b5767f9",
+  "versionId": "04f6bde5-1282-4f2a-a2da-6a595bb6c618",
   "meta": {
     "instanceId": "6e1157a2956c12c2b36f9d72c1950e2fdb1c79d5927dc89fc414eadb6d1c953d"
   },
