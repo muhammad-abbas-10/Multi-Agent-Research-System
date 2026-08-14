@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import './App.css';
 
@@ -14,6 +14,7 @@ const Icon = ({ name, size = 18 }) => {
     arrow: <><path d="M5 12h14M14 7l5 5-5 5"/></>,
     external: <><path d="M15 4h5v5M20 4l-9 9"/><path d="M18 13v6H5V6h6"/></>,
     check: <path d="m5 12 4 4L19 6"/>,
+    history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 };
@@ -33,6 +34,15 @@ const markdownComponents = {
   a: ({ children, ...props }) => <a {...props} target="_blank" rel="noreferrer">{children}<Icon name="external" size={13}/></a>,
   table: ({ children }) => <div className="table-wrap"><table>{children}</table></div>,
   blockquote: ({ children }) => <blockquote><span className="callout-label">Verified insight</span>{children}</blockquote>,
+};
+
+const formatHistoryDate = (timestamp) => {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }),
+  }).format(date);
 };
 
 function Pipeline({ state, activeAgent, onSelect }) {
@@ -82,18 +92,47 @@ function App() {
   const [report, setReport] = useState('');
   const [error, setError] = useState('');
   const [activeAgent, setActiveAgent] = useState('planner');
+  const [history, setHistory] = useState([]);
+  const [selectedHistoryId, setSelectedHistoryId] = useState(null);
   const state = report ? 'complete' : loading ? 'running' : 'ready';
   const selectedAgent = useMemo(() => AGENTS.find((agent) => agent.id === activeAgent), [activeAgent]);
 
+  const refreshHistory = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/history');
+      if (!response.ok) throw new Error(`History request failed: ${response.status}`);
+      const data = await response.json();
+      setHistory(Array.isArray(data) ? data : []);
+    } catch (historyError) {
+      console.error('Unable to load research history:', historyError);
+    }
+  };
+
+  useEffect(() => {
+    refreshHistory();
+  }, []);
+
   const handleResearch = async (event) => {
     event.preventDefault(); if (!question.trim()) return;
-    setLoading(true); setError(''); setReport(''); setSubmittedQuestion(question.trim()); setActiveAgent('planner');
+    setLoading(true); setError(''); setReport(''); setSubmittedQuestion(question.trim()); setActiveAgent('planner'); setSelectedHistoryId(null);
     try {
       const response = await fetch('http://localhost:3001/api/research', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question}) });
       if (!response.ok) throw new Error('Research request failed');
       const data = await response.json(); setReport(data.report); setActiveAgent('report');
+      refreshHistory();
     } catch { setError('The research workflow could not complete. Please try again.'); }
     finally { setLoading(false); }
+  };
+
+  const openHistorySession = (session) => {
+    if (loading) return;
+    setReport(session.report);
+    setSubmittedQuestion(session.question);
+    setQuestion(session.question);
+    setError('');
+    setActiveAgent('report');
+    setSelectedHistoryId(session.id);
+    requestAnimationFrame(() => document.getElementById('final-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
   return <div className="app-shell">
@@ -111,6 +150,13 @@ function App() {
       <div className="workspace-layout"><AgentRail activeAgent={activeAgent} onSelect={setActiveAgent} state={state}/><AgentWorkspace agent={selectedAgent} state={state} question={submittedQuestion || question} report={report}/></div>
 
       {report && <article className="report" id="final-report"><aside className="report-aside"><span>Final intelligence</span><strong>Verified research</strong><p>Generated after specialist merge and fact checking.</p></aside><div className="report-document"><header><span>Final research report</span><h2>{submittedQuestion}</h2><div><b><Icon name="check" size={13}/> Fact checked</b><small>Multi-agent synthesis</small></div></header><div className="report-content"><ReactMarkdown components={markdownComponents}>{report}</ReactMarkdown></div></div></article>}
+
+      {history.length > 0 && <section className="history-section" aria-labelledby="history-title">
+        <header className="history-header"><div><span className="history-icon"><Icon name="history" size={17}/></span><div><span className="overline">Previous investigations</span><h2 id="history-title">Research history</h2></div></div><small>{history.length} saved {history.length === 1 ? 'session' : 'sessions'}</small></header>
+        <div className="history-list">{history.map((session) => <button key={session.id} type="button" className={`history-row ${selectedHistoryId === session.id ? 'active' : ''}`} onClick={() => openHistorySession(session)} disabled={loading}>
+          <span className="history-index">{String(session.id).padStart(2, '0')}</span><span className="history-question">{session.question}</span><time dateTime={session.created_at}>{formatHistoryDate(session.created_at)}</time><span className="history-open"><Icon name="arrow" size={15}/></span>
+        </button>)}</div>
+      </section>}
     </main>
     <footer className="site-footer"><span>Research OS</span><span>Planner → parallel investigation → verification → report</span></footer>
   </div>;
