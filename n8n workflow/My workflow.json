@@ -10,7 +10,7 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -32,
+        -320,
         80
       ],
       "id": "b68c8936-434c-48a2-aabf-4af2ae433b07",
@@ -25,7 +25,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a research agent. Given a research topic and subtasks, identify 3-5 relevant candidate options (models, tools, or approaches) with brief supporting details for each. Respond ONLY with valid JSON in this format: {\\\"models\\\": [{\\\"name\\\": \\\"...\\\", \\\"details\\\": \\\"...\\\"}]}\"}, {role: \"user\", content: \"Research topic and subtasks: \" + $json.choices[0].message.content}]}) }}",
+        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a research agent. You will be given real web search results about a research topic. Based ONLY on these real results, identify 3-5 relevant candidate options (models, tools, or approaches) with brief supporting details for each, citing what the source said. Respond ONLY with valid JSON in this format: {\\\"models\\\": [{\\\"name\\\": \\\"...\\\", \\\"details\\\": \\\"...\\\", \\\"source\\\": \\\"...\\\"}]}\"}, {role: \"user\", content: \"Search results: \" + $input.all().map(item => item.json.results.map(r => r.title + \": \" + r.content).join(\"\\n\\n\")).join(\"\\n\\n\")}]}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -57,7 +57,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        192,
+        -80,
         80
       ],
       "id": "1313fccf-82d1-4af7-803d-f908eb8d4f67",
@@ -77,7 +77,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a technical analysis agent. Given a research topic and subtasks, analyze technical specifications: parameters, context length, VRAM/hardware requirements, quantization support, and inference frameworks. Focus on modern open-source LLMs like Llama, Mistral, Qwen, Gemma, DeepSeek. Respond ONLY with valid JSON in this format: {\\\"technical_comparison\\\": [{\\\"model\\\": \\\"...\\\", \\\"parameters\\\": \\\"...\\\", \\\"context_length\\\": \\\"...\\\", \\\"vram_requirement\\\": \\\"...\\\", \\\"frameworks\\\": \\\"...\\\"}]}\"}, {role: \"user\", content: \"Research topic and subtasks: \" + $json.choices[0].message.content}]}) }}",
+        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a technical analysis agent. You will be given real web search results about a research topic. Based ONLY on these real results, analyze technical specifications: parameters, context length, VRAM/hardware requirements, quantization support, and inference frameworks. Respond ONLY with valid JSON in this format: {\\\"technical_comparison\\\": [{\\\"model\\\": \\\"...\\\", \\\"parameters\\\": \\\"...\\\", \\\"context_length\\\": \\\"...\\\", \\\"vram_requirement\\\": \\\"...\\\", \\\"frameworks\\\": \\\"...\\\", \\\"source\\\": \\\"...\\\"}]}\"}, {role: \"user\", content: \"Search results: \" + $input.all().map(item => item.json.results.map(r => r.title + \": \" + r.content).join(\"\\n\\n\")).join(\"\\n\\n\")}]}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -103,7 +103,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a cost and performance analysis agent. Given a research topic and subtasks about LLMs, analyze what hardware profile each model realistically fits (e.g. 8GB VRAM, 16GB VRAM, CPU-only), expected inference speed, and quantization tradeoffs. Focus on modern open-source LLMs like Llama, Mistral, Qwen, Gemma, DeepSeek. Respond ONLY with valid JSON in this format: {\\\"recommendations\\\": [{\\\"model\\\": \\\"...\\\", \\\"hardware_fit\\\": \\\"...\\\", \\\"reasoning\\\": \\\"...\\\"}]}\"}, {role: \"user\", content: \"Research topic and subtasks: \" + $json.choices[0].message.content}]}) }}",
+        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a cost and performance analysis agent. You will be given real web search results about a research topic. Based on these results, analyze what hardware profile each model realistically fits, expected inference speed, and quantization tradeoffs. IMPORTANT: If the exact VRAM/hardware requirement is not explicitly stated in the search results, mark it as an estimate rather than presenting it as fact. Respond ONLY with valid JSON in this format: {\\\"recommendations\\\": [{\\\"model\\\": \\\"...\\\", \\\"hardware_fit\\\": \\\"...\\\", \\\"is_estimated\\\": true or false, \\\"reasoning\\\": \\\"...\\\", \\\"source\\\": \\\"...\\\"}]}\"}, {role: \"user\", content: \"Search results: \" + $input.all().map(item => item.json.results.map(r => r.title + \": \" + r.content).join(\"\\n\\n\")).join(\"\\n\\n\")}]}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -186,6 +186,60 @@
           "name": "Header Auth account"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({api_key: \"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\", query: $json.choices[0].message.content + \" technical specifications parameters context length VRAM requirements\", max_results: 5}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        80
+      ],
+      "id": "defd33fe-b256-47eb-b21c-5c9c86f28d45",
+      "name": "Tavily Search - Technical"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({api_key: \"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\", query: $json.choices[0].message.content, max_results: 5}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        -128
+      ],
+      "id": "249e433b-6ba1-4c6d-b376-94c04bcdfe4b",
+      "name": "Tavily Search - Reseach"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({api_key: \"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\", query: $json.choices[0].message.content + \" hardware requirements GPU VRAM performance benchmarks inference speed\", max_results: 5}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        272
+      ],
+      "id": "7ac62794-74fe-409d-a43d-0c9bb0ec6ced",
+      "name": "Tavily Search - Technical1"
     }
   ],
   "pinData": {},
@@ -205,17 +259,17 @@
       "main": [
         [
           {
-            "node": "Research Agent",
+            "node": "Tavily Search - Reseach",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Technical Agent",
+            "node": "Tavily Search - Technical",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Cost Performance Agent",
+            "node": "Tavily Search - Technical1",
             "type": "main",
             "index": 0
           }
@@ -276,6 +330,44 @@
           }
         ]
       ]
+    },
+    "Final Report": {
+      "main": [
+        []
+      ]
+    },
+    "Tavily Search - Reseach": {
+      "main": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Search - Technical": {
+      "main": [
+        [
+          {
+            "node": "Technical Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Search - Technical1": {
+      "main": [
+        [
+          {
+            "node": "Cost Performance Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -283,7 +375,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "04f6bde5-1282-4f2a-a2da-6a595bb6c618",
+  "versionId": "6e8e1bc9-072a-40df-a6fe-c6429a9f30f1",
   "meta": {
     "instanceId": "6e1157a2956c12c2b36f9d72c1950e2fdb1c79d5927dc89fc414eadb6d1c953d"
   },
