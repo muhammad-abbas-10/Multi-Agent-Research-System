@@ -11,7 +11,7 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -320,
+        -736,
         80
       ],
       "id": "b68c8936-434c-48a2-aabf-4af2ae433b07",
@@ -52,13 +52,13 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"model\": \"llama-3.3-70b-versatile\", \"messages\": [{\"role\": \"system\", \"content\": \"You are a research planning agent. Given a research question, break it into 4-6 clear research subtasks. Respond ONLY with valid JSON in this exact format, no extra text: {\\\"topic\\\": \\\"...\\\", \\\"subtasks\\\": [\\\"...\\\", \\\"...\\\"]}\"}, {\"role\": \"user\", \"content\": \"{{ $json.body.question }}\"}]}",
+        "jsonBody": "={{ JSON.stringify({model: \"llama-3.3-70b-versatile\", messages: [{role: \"system\", content: \"You are a research planning agent for a system that compares technical options (models, tools, products, approaches). First, judge whether the question is a comparison-style research question with identifiable candidate options to compare (e.g. 'best X for Y', 'compare A vs B'). If it IS: break it into 4-6 clear research subtasks and respond with valid JSON in this exact format: {\\\"is_valid\\\": true, \\\"topic\\\": \\\"...\\\", \\\"subtasks\\\": [\\\"...\\\", \\\"...\\\"]}. If it is NOT a comparison-style research question (e.g. opinion/ranking questions with no technical candidates, single-fact lookups, open-ended advice): respond with {\\\"is_valid\\\": false, \\\"reason\\\": \\\"a brief, friendly explanation of why this question doesn't fit, and an example of a question type that would work\\\"}. Respond ONLY with valid JSON, no extra text.\"}, {role: \"user\", content: $json.body.question}]}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        -80,
+        -464,
         80
       ],
       "id": "1313fccf-82d1-4af7-803d-f908eb8d4f67",
@@ -241,6 +241,54 @@
       ],
       "id": "7ac62794-74fe-409d-a43d-0c9bb0ec6ced",
       "name": "Tavily Search - Technical1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8930890e-62a4-4afb-a969-ecce3b970ad7",
+              "leftValue": "={{ JSON.parse($json.choices[0].message.content).is_valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -224,
+        80
+      ],
+      "id": "8949e631-a942-4b6e-a7f5-de4469d7101c",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({ choices: [{ message: { content: JSON.parse($json.choices[0].message.content).reason } }] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -64,
+        304
+      ],
+      "id": "584d67b3-bd46-4fcd-80be-51bbe2e39506",
+      "name": "Edit Fields"
     }
   ],
   "pinData": {},
@@ -260,17 +308,7 @@
       "main": [
         [
           {
-            "node": "Tavily Search - Reseach",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Tavily Search - Technical",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Tavily Search - Technical1",
+            "node": "If",
             "type": "main",
             "index": 0
           }
@@ -369,6 +407,34 @@
           }
         ]
       ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Tavily Search - Reseach",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tavily Search - Technical",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tavily Search - Technical1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -377,7 +443,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "184f9aae-7d35-42d4-a895-bd5eec3fb70e",
+  "versionId": "f00112fc-de15-4ef8-ae7f-b408c40a5db2",
   "meta": {
     "instanceId": "6e1157a2956c12c2b36f9d72c1950e2fdb1c79d5927dc89fc414eadb6d1c953d"
   },
