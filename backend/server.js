@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { Pool } = require('pg');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(cors());
@@ -13,7 +14,15 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-app.post('/api/research', async (req, res) => {
+const researchLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 8,
+  message: { error: 'Too many research requests from this device. Please try again in an hour.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.post('/api/research', researchLimiter, async (req, res) => {
   try {
     const { question } = req.body;
 
