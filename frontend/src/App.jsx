@@ -15,6 +15,7 @@ const Icon = ({ name, size = 18 }) => {
     external: <><path d="M15 4h5v5M20 4l-9 9"/><path d="M18 13v6H5V6h6"/></>,
     check: <path d="m5 12 4 4L19 6"/>,
     history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></>,
+    download: <><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 };
@@ -100,6 +101,7 @@ function App() {
   const [report, setReport] = useState('');
   const [error, setError] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [rateLimited, setRateLimited] = useState(false);
   const [activeAgent, setActiveAgent] = useState('planner');
   const [history, setHistory] = useState([]);
   const [selectedHistoryId, setSelectedHistoryId] = useState(null);
@@ -134,10 +136,15 @@ function App() {
       return;
     }
     setValidationError('');
-    setLoading(true); setError(''); setReport(''); setSubmittedQuestion(normalizedQuestion); setActiveAgent('planner'); setSelectedHistoryId(null);
+    setLoading(true); setError(''); setRateLimited(false); setReport(''); setSubmittedQuestion(normalizedQuestion); setActiveAgent('planner'); setSelectedHistoryId(null);
     try {
       const response = await fetch(apiUrl('/api/research'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question: normalizedQuestion}) });
       const data = await response.json().catch(() => ({}));
+      if (response.status === 429) {
+        setRateLimited(true);
+        setError(data.error || 'You have reached the research limit. Please wait before starting another report.');
+        return;
+      }
       if (!response.ok) throw new Error(data.error || `Research request failed (${response.status})`);
       refreshHistory();
       if (!isResearchReport(data.report)) {
@@ -157,10 +164,23 @@ function App() {
     setSubmittedQuestion(session.question);
     setQuestion(session.question);
     setValidationError('');
+    setRateLimited(false);
     setError(validReport ? '' : session.report || 'This saved session did not produce a research report.');
     setActiveAgent(validReport ? 'report' : 'planner');
     setSelectedHistoryId(session.id);
     if (validReport) requestAnimationFrame(() => document.getElementById('final-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+
+  const exportReport = () => {
+    if (!report) return;
+    const slug = submittedQuestion.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'research-report';
+    const file = new Blob([`# ${submittedQuestion}\n\n${report}`], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${slug}.md`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   return <div className="app-shell">
@@ -172,12 +192,12 @@ function App() {
       </section>
 
       {(submittedQuestion || error) && <section className="session-header"><div><span>Research session</span><h2>{submittedQuestion}</h2></div><div className={`session-state ${state}`}><i/>{state === 'complete' ? 'Research complete' : state === 'running' ? 'Workflow running' : 'Not completed'}</div><dl><div><dt>Stages</dt><dd>6</dd></div><div><dt>Parallel specialists</dt><dd>3</dd></div><div><dt>Verification</dt><dd>{report ? 'Complete' : loading ? 'Pending' : '—'}</dd></div></dl></section>}
-      {(validationError || error) && <div className="error" role="alert"><strong>{validationError ? 'Check your question' : 'Execution interrupted'}</strong>{validationError || error}</div>}
+      {(validationError || error) && <div className={`error ${rateLimited ? 'rate-limit' : ''}`} role="alert"><strong>{validationError ? 'Check your question' : rateLimited ? 'Research limit reached' : 'Execution interrupted'}</strong>{validationError || error}</div>}
 
       <Pipeline state={state} activeAgent={activeAgent} onSelect={setActiveAgent}/>
       <div className="workspace-layout"><AgentRail activeAgent={activeAgent} onSelect={setActiveAgent} state={state}/><AgentWorkspace agent={selectedAgent} state={state} question={submittedQuestion || question} report={report}/></div>
 
-      {report && <article className="report" id="final-report"><aside className="report-aside"><span>Final intelligence</span><strong>Verified research</strong><p>Generated after specialist merge and fact checking.</p></aside><div className="report-document"><header><span>Final research report</span><h2>{submittedQuestion}</h2><div><b><Icon name="check" size={13}/> Fact checked</b><small>Multi-agent synthesis</small></div></header><div className="report-content"><ReactMarkdown components={markdownComponents}>{report}</ReactMarkdown></div></div></article>}
+      {report && <article className="report" id="final-report"><aside className="report-aside"><span>Final intelligence</span><strong>Verified research</strong><p>Generated after specialist merge and fact checking.</p><button className="export-button" type="button" onClick={exportReport}><Icon name="download" size={14}/> Export Markdown</button></aside><div className="report-document"><header><span>Final research report</span><h2>{submittedQuestion}</h2><div><b><Icon name="check" size={13}/> Fact checked</b><small>Multi-agent synthesis</small></div></header><div className="report-content"><ReactMarkdown components={markdownComponents}>{report}</ReactMarkdown></div></div></article>}
 
       {history.length > 0 && <section className="history-section" aria-labelledby="history-title">
         <header className="history-header"><div><span className="history-icon"><Icon name="history" size={17}/></span><div><span className="overline">Previous investigations</span><h2 id="history-title">Research history</h2></div></div><small>{history.length} saved {history.length === 1 ? 'session' : 'sessions'}</small></header>
