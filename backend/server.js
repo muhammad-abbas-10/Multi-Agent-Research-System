@@ -16,19 +16,30 @@ const pool = new Pool({
 app.post('/api/research', async (req, res) => {
   try {
     const { question } = req.body;
-    if (!question) {
+
+    if (!question || typeof question !== 'string' || !question.trim()) {
       return res.status(400).json({ error: 'Question is required' });
     }
 
-    const n8nResponse = await axios.post(process.env.N8N_WEBHOOK_URL, { question });
+    const trimmedQuestion = question.trim();
+
+    if (trimmedQuestion.length < 10) {
+      return res.status(400).json({ error: 'Question is too short — please provide more detail (at least 10 characters)' });
+    }
+
+    if (trimmedQuestion.length > 500) {
+      return res.status(400).json({ error: 'Question is too long — please keep it under 500 characters' });
+    }
+
+    const n8nResponse = await axios.post(process.env.N8N_WEBHOOK_URL, { question: trimmedQuestion });
     const reportContent = n8nResponse.data.choices[0].message.content;
 
     await pool.query(
       'INSERT INTO research_sessions (question, report) VALUES ($1, $2)',
-      [question, reportContent]
+      [trimmedQuestion, reportContent]
     );
 
-    res.json({ question, report: reportContent });
+    res.json({ question: trimmedQuestion, report: reportContent });
   } catch (error) {
     console.error('Error calling n8n:', error.message);
     res.status(500).json({ error: 'Research pipeline failed' });

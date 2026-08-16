@@ -36,6 +36,14 @@ const markdownComponents = {
   blockquote: ({ children }) => <blockquote><span className="callout-label">Verified insight</span>{children}</blockquote>,
 };
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const apiUrl = (path) => `${API_BASE_URL}${path}`;
+
+const isResearchReport = (content) => {
+  if (typeof content !== 'string' || !content.trim()) return false;
+  return /executive summary/i.test(content) && /(model comparison|technical analysis|recommendation)/i.test(content);
+};
+
 const formatHistoryDate = (timestamp) => {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return '';
@@ -91,6 +99,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState('');
   const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState('');
   const [activeAgent, setActiveAgent] = useState('planner');
   const [history, setHistory] = useState([]);
   const [selectedHistoryId, setSelectedHistoryId] = useState(null);
@@ -99,7 +108,7 @@ function App() {
 
   const refreshHistory = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/history');
+      const response = await fetch(apiUrl('/api/history'));
       if (!response.ok) throw new Error(`History request failed: ${response.status}`);
       const data = await response.json();
       setHistory(Array.isArray(data) ? data : []);
@@ -113,26 +122,45 @@ function App() {
   }, []);
 
   const handleResearch = async (event) => {
-    event.preventDefault(); if (!question.trim()) return;
-    setLoading(true); setError(''); setReport(''); setSubmittedQuestion(question.trim()); setActiveAgent('planner'); setSelectedHistoryId(null);
+    event.preventDefault();
+    const normalizedQuestion = question.trim();
+    if (!normalizedQuestion) return;
+    if (normalizedQuestion.length < 10) {
+      setValidationError('Question must be at least 10 characters long.');
+      return;
+    }
+    if (normalizedQuestion.length > 500) {
+      setValidationError('Question must be 500 characters or fewer.');
+      return;
+    }
+    setValidationError('');
+    setLoading(true); setError(''); setReport(''); setSubmittedQuestion(normalizedQuestion); setActiveAgent('planner'); setSelectedHistoryId(null);
     try {
-      const response = await fetch('http://localhost:3001/api/research', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question}) });
-      if (!response.ok) throw new Error('Research request failed');
-      const data = await response.json(); setReport(data.report); setActiveAgent('report');
+      const response = await fetch(apiUrl('/api/research'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question: normalizedQuestion}) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Research request failed (${response.status})`);
       refreshHistory();
-    } catch { setError('The research workflow could not complete. Please try again.'); }
+      if (!isResearchReport(data.report)) {
+        setError(data.report || 'This question does not fit the comparison-style research workflow.');
+        setActiveAgent('planner');
+        return;
+      }
+      setReport(data.report); setActiveAgent('report');
+    } catch (requestError) { setError(requestError.message || 'The research workflow could not complete. Please try again.'); }
     finally { setLoading(false); }
   };
 
   const openHistorySession = (session) => {
     if (loading) return;
-    setReport(session.report);
+    const validReport = isResearchReport(session.report);
+    setReport(validReport ? session.report : '');
     setSubmittedQuestion(session.question);
     setQuestion(session.question);
-    setError('');
-    setActiveAgent('report');
+    setValidationError('');
+    setError(validReport ? '' : session.report || 'This saved session did not produce a research report.');
+    setActiveAgent(validReport ? 'report' : 'planner');
     setSelectedHistoryId(session.id);
-    requestAnimationFrame(() => document.getElementById('final-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    if (validReport) requestAnimationFrame(() => document.getElementById('final-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
   return <div className="app-shell">
@@ -140,11 +168,11 @@ function App() {
     <main id="top">
       <section className="command-center">
         <div className="command-copy"><span className="overline">Multi-agent research system</span><h1>Investigate complex questions.<br/><em>Verify every conclusion.</em></h1><p>One planner. Three parallel specialists. One evidence verification layer.</p></div>
-        <form className="command-input" onSubmit={handleResearch}><span className="prompt-mark">⌁</span><input aria-label="Research question" value={question} onChange={(e)=>setQuestion(e.target.value)} placeholder="What do you want to research?" disabled={loading}/><button disabled={loading || !question.trim()}>{loading ? <><span className="spinner"/> Running</> : <>Run research <Icon name="arrow" size={16}/></>}</button></form>
+        <form className="command-input" onSubmit={handleResearch}><span className="prompt-mark">⌁</span><input aria-label="Research question" value={question} onChange={(e)=>{ setQuestion(e.target.value); setValidationError(''); }} placeholder="Compare models, tools, products, or approaches…" maxLength={500} disabled={loading}/>{question.length > 0 && <span className={`question-counter ${question.length > 500 ? 'over-limit' : ''}`}>{question.length}/500</span>}<button disabled={loading || !question.trim()}>{loading ? <><span className="spinner"/> Running</> : <>Run research <Icon name="arrow" size={16}/></>}</button></form>
       </section>
 
-      {(submittedQuestion || error) && <section className="session-header"><div><span>Research session</span><h2>{submittedQuestion}</h2></div><div className={`session-state ${state}`}><i/>{state === 'complete' ? 'Research complete' : state === 'running' ? 'Workflow running' : 'Interrupted'}</div><dl><div><dt>Stages</dt><dd>6</dd></div><div><dt>Parallel specialists</dt><dd>3</dd></div><div><dt>Verification</dt><dd>{report ? 'Complete' : loading ? 'Pending' : '—'}</dd></div></dl></section>}
-      {error && <div className="error" role="alert"><strong>Execution interrupted</strong>{error}</div>}
+      {(submittedQuestion || error) && <section className="session-header"><div><span>Research session</span><h2>{submittedQuestion}</h2></div><div className={`session-state ${state}`}><i/>{state === 'complete' ? 'Research complete' : state === 'running' ? 'Workflow running' : 'Not completed'}</div><dl><div><dt>Stages</dt><dd>6</dd></div><div><dt>Parallel specialists</dt><dd>3</dd></div><div><dt>Verification</dt><dd>{report ? 'Complete' : loading ? 'Pending' : '—'}</dd></div></dl></section>}
+      {(validationError || error) && <div className="error" role="alert"><strong>{validationError ? 'Check your question' : 'Execution interrupted'}</strong>{validationError || error}</div>}
 
       <Pipeline state={state} activeAgent={activeAgent} onSelect={setActiveAgent}/>
       <div className="workspace-layout"><AgentRail activeAgent={activeAgent} onSelect={setActiveAgent} state={state}/><AgentWorkspace agent={selectedAgent} state={state} question={submittedQuestion || question} report={report}/></div>

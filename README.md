@@ -18,36 +18,25 @@ Built as a hands-on learning project to understand agentic orchestration, n8n wo
                     v
             Node.js/Express API
         POST /api/research  GET /api/history
+         (validated input)
                     |            |
                     v            v
               n8n (Webhook)  PostgreSQL (Neon)
                     |         (research_sessions)
                     v
               Research Planner
-           (breaks question into subtasks)
-                    |
-        +-----------+-----------+
-        |           |           |
-        v           v           v
-   Tavily Search Tavily Search Tavily Search
-   (general)     (technical)   (performance)
-        |           |           |
-        v           v           v
-    Research     Technical    Cost/Performance
-     Agent         Agent          Agent
-        |           |           |
-        +-----------+-----------+
+        (validates question + breaks into subtasks)
                     |
                     v
-                Merge Node
-                    |
-                    v
-              Fact Checker
-     (flags agreement/conflict per model)
-                    |
-                    v
-            Final Report Agent
-      (structured Markdown report)
+              IF: is_valid?
+             /            \
+          true            false
+           |                |
+   3 parallel branches   Rejection message
+   (Tavily + Agents)     (friendly explanation
+           |               + example questions)
+           v
+       Merge -> Fact Checker -> Final Report Agent
 ```
 
 ## Tech stack (zero-cost)
@@ -65,20 +54,22 @@ Built as a hands-on learning project to understand agentic orchestration, n8n wo
 ## Current status
 
 - [x] Webhook receives research questions
-- [x] Planner agent breaks questions into structured subtasks
+- [x] Planner agent validates the question and breaks it into structured subtasks
+- [x] Guard rail: non-comparison-style questions are rejected gracefully with a helpful explanation, instead of crashing the pipeline
 - [x] Three parallel specialist agents (Research, Technical, Cost/Performance), each grounded in dedicated Tavily web search results instead of model memory
 - [x] Merge node combines all agent outputs
 - [x] Fact-checking agent detects agreement/conflict across agents' claims, citing specific models by name
 - [x] Final report synthesis agent (structured Markdown output: Executive Summary, Comparison, Technical Analysis, Hardware Fit, Recommendation, Limitations)
 - [x] Cost/Performance agent explicitly flags estimated vs. sourced hardware figures (`is_estimated` field) rather than presenting guesses as fact
 - [x] Node.js/Express backend wrapping the n8n pipeline with a clean `{ question, report }` API contract
-- [x] React frontend — question input, loading state, and rendered Markdown report display
-- [x] PostgreSQL (Neon) persistence — every research session is saved automatically (`POST /api/research`)
-- [x] History retrieval endpoint (`GET /api/history`) — returns the 20 most recent sessions
-- [ ] History UI in the frontend (list past sessions, click to reload a saved report) — in progress
-- [ ] Graceful handling of non-comparison-style questions (see Known limitations)
+- [x] Backend + frontend input validation (min/max length, type checks, live character counter) rejecting bad input before it reaches the pipeline
+- [x] React frontend with a custom design system — pipeline visualization, per-agent workspace views, formatted report document
+- [x] PostgreSQL (Neon) persistence — every research session is saved automatically
+- [x] Research history UI — list of past sessions, click to reload any saved report
+- [ ] Deployment to a live URL (planned)
+- [ ] UI polish: page metadata/favicon, graceful rate-limit messaging, mobile check, report export
 
-**The full stack is functional end to end**: a question typed into the React UI is sent through the backend to n8n, runs the complete grounded, fact-checked pipeline, saves the result to Postgres, and renders back as a formatted report — typically in 25-30 seconds, reflecting the ~4 sequential and 3 parallel AI/search operations involved per request.
+**The full stack is functional end to end**: a question typed into the React UI is validated, sent through the backend to n8n, is checked by the Planner for topic fit, runs the complete grounded, fact-checked pipeline (or returns a graceful rejection), saves the result to Postgres, and renders back as a formatted report — typically in 25-30 seconds for a valid research question.
 
 ## Example output (excerpt)
 
@@ -88,28 +79,32 @@ Built as a hands-on learning project to understand agentic orchestration, n8n wo
 
 The system distinguishes claims backed by multiple independent sources from single-source mentions — this cross-verification is the core differentiator from a simple LLM wrapper.
 
+**Example rejection (guard rail in action)** — asking "best trader of Pakistan":
+
+> This question is an opinion-based ranking question with no specific technical candidates to compare. A valid question would be 'compare trading platforms in Pakistan' or 'best trading strategies for Pakistani stock market'.
+
 ## Debugging notes (real issues hit and fixed)
 
 This section exists because these were genuinely non-obvious bugs, and documenting them is more useful than pretending the build was frictionless.
 
-**1. Expression mode silently not applied.** An n8n field can *look* like it contains a live expression (`{{ $json.body.question }}`) while still being in "Fixed" mode internally, which sends the text literally instead of evaluating it. Diagnosed by exporting the workflow JSON and checking whether the field's stored value started with `=` (n8n's internal marker for "this is a real expression"). Fixed by explicitly toggling the field to Expression mode.
+**1. Expression mode silently not applied.** An n8n field can *look* like it contains a live expression while still being in "Fixed" mode internally, sending the text literally instead of evaluating it. Diagnosed by exporting the workflow JSON and checking whether the field's stored value started with `=`. Fixed by explicitly toggling the field to Expression mode.
 
-**2. Merge node silently dropping data.** Using "Combine by Position" mode on three JSON objects that share identical top-level field names (all three agents return the same Groq response shape) causes n8n to silently keep only the last item instead of merging them — no error, just wrong data flowing downstream. Fixed by switching to "Append" mode and combining the items explicitly inside the next node's expression using `$input.all().map(...)`.
+**2. Merge node silently dropping data.** Using "Combine by Position" mode on JSON objects with identical top-level field names silently keeps only the last item. Fixed by switching to "Append" mode and combining items explicitly with `$input.all().map(...)`.
 
-**3. LLM hallucination without grounding.** Early versions of the agents (before Tavily was added) confidently invented plausible-sounding but false technical specs. Fixed by adding a Tavily web search step before each agent's LLM call, so agents summarize real retrieved content instead of guessing. Where sources still don't specify exact figures, the Cost/Performance agent explicitly marks these as estimates rather than presenting them as fact.
+**3. LLM hallucination without grounding.** Early agent versions confidently invented plausible-sounding but false technical specs. Fixed by adding a Tavily web search step before each agent's LLM call, and explicitly flagging estimates vs. sourced figures where data is still incomplete.
 
-**4. Webhook responding before the pipeline finished.** By default, n8n's webhook responds immediately on receipt, before the workflow actually runs — meaning the API returned `{"message": "Workflow was started"}` instead of the real report. Fixed by setting the Webhook node's Respond option to "When Last Node Finishes," so the HTTP response waits for the entire pipeline (including the Final Report Agent) to complete.
+**4. Webhook responding before the pipeline finished.** n8n's webhook responds immediately by default, before the workflow runs. Fixed via the Webhook node's "Respond: When Last Node Finishes" setting.
 
-**5. (Known limitation) Off-topic queries can fail the pipeline.** Since the Planner, agents, and Tavily search queries are all tuned around comparison-style research questions ("best X for Y"), an unrelated or non-comparison question can produce a differently-shaped response that breaks a downstream node expecting a specific structure.
+**5. Off-topic queries crashing the pipeline.** The Planner now judges topic fit and outputs an `is_valid` flag; an IF node routes valid questions through the normal pipeline and invalid ones to a Rejection Message node that reshapes a friendly explanation into the same response format the frontend already expects.
 
-**6. Groq free-tier daily token limit.** A single full pipeline run uses ~2,000-3,000 tokens across all its LLM calls; Groq's free tier caps at 100,000 tokens/day, which is roughly 30-50 full runs/day — enough for normal use, but easy to exhaust during a long testing/debugging session. The limit resets daily; no workaround was needed beyond waiting, since OpenRouter's free tier (50 requests/day) would actually be hit faster given this pipeline's call volume per request.
+**6. Groq free-tier daily token limit.** A single full pipeline run uses ~2,000-3,000 tokens; the free tier caps at 100,000 tokens/day (~30-50 full runs/day). Resets daily — no workaround needed beyond waiting.
 
 ## Known limitations
 
-- Very recently released models sometimes lack well-documented hardware/VRAM benchmarks, since community testing lags behind release dates. The system surfaces this as an explicit estimate flag or "no data" note rather than guessing — an intentional design choice, not a bug.
-- No authentication, deployment, or production hardening — this is a local/portfolio-scale MVP, not a production system.
-- Currently tuned and tested primarily for comparison-style research questions ("best X for Y", "compare A vs B"). Off-topic or non-comparison questions can cause a pipeline failure rather than a graceful fallback — see debugging note #5.
-- Free-tier API limits (Groq token cap, Tavily search credits) mean heavy back-to-back testing can temporarily pause functionality — see debugging note #6.
+- Very recently released models sometimes lack well-documented hardware/VRAM benchmarks. The system surfaces this as an explicit estimate flag or "no data" note rather than guessing.
+- No authentication yet — deliberately deferred, since it's not the core value proposition of this project (multi-agent orchestration and fact-checking are). May be added later as a separate enhancement.
+- No deployment yet — planned; currently runs locally across three services (n8n Cloud, local backend, local frontend).
+- Free-tier API limits (Groq token cap, Tavily search credits) mean heavy back-to-back testing can temporarily pause functionality.
 
 ## Setup
 
@@ -118,9 +113,9 @@ This section exists because these were genuinely non-obvious bugs, and documenti
 3. Create a free Groq API key at [console.groq.com](https://console.groq.com) and add it as a Header Auth credential in n8n (`Authorization: Bearer <your-key>`).
 4. Create a free Tavily API key at [tavily.com](https://tavily.com) for web search grounding.
 5. Create a free Postgres database at [neon.tech](https://neon.tech) and run the schema below.
-6. In `backend/`, create a `.env` with `N8N_WEBHOOK_URL`, `PORT`, and `DATABASE_URL` (your Neon connection string). Run `npm install` then `node server.js`.
+6. In `backend/`, create a `.env` with `N8N_WEBHOOK_URL`, `PORT`, and `DATABASE_URL`. Run `npm install` then `node server.js`.
 7. In `frontend/`, run `npm install` then `npm run dev`.
-8. Open the frontend, type a research question, and click Research.
+8. Open the frontend, type a comparison-style research question (10-500 characters), and click Research.
 
 ### Database schema
 
@@ -135,6 +130,6 @@ CREATE TABLE research_sessions (
 
 ## Roadmap
 
-- Research history UI in the frontend
-- Graceful fallback/validation for non-comparison-style questions
+- Deploy backend and frontend to live URLs
+- UI polish: page metadata, graceful rate-limit messaging, mobile testing, report export
 - Move Tavily key into a proper n8n credential (currently inline for simplicity during development)
