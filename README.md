@@ -46,7 +46,7 @@ Built as a hands-on learning project to understand agentic orchestration, n8n wo
 | Component | Technology |
 |---|---|
 | Orchestration | n8n (Cloud, free trial) |
-| LLM inference | Groq API (Llama 3.3 70B, free tier) |
+| LLM inference | Groq API (GPT-OSS 120B, free tier) |
 | Web search grounding | Tavily API (free tier) |
 | Backend | Node.js + Express, deployed on Railway |
 | Frontend | React + Vite, deployed on Vercel |
@@ -102,6 +102,8 @@ This section exists because these were genuinely non-obvious bugs, and documenti
 
 **6. Groq free-tier daily token limit.** ~2,000-3,000 tokens per full pipeline run; free tier caps at 100,000/day (~30-50 runs/day). Resets daily.
 
+**Model deprecation.** Groq retired `llama-3.3-70b-versatile` for free/developer accounts on August 16, 2026. The workflow now uses Groq's recommended `openai/gpt-oss-120b` replacement; re-import and publish the workflow after pulling this change.
+
 **7. Railway Root Directory setting reset unexpectedly after a routine push**, causing a "could not determine how to build the app" failure. Fixed by re-confirming the Root Directory was set to `backend` in Railway's service settings and redeploying. Root cause unconfirmed (likely a platform-side quirk), but worth knowing this setting can silently revert.
 
 ## Known limitations
@@ -141,5 +143,4 @@ CREATE TABLE research_sessions (
   created_at TIMESTAMP DEFAULT NOW()
 );
 ```
-
 
