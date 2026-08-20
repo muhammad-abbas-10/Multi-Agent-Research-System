@@ -13,7 +13,7 @@ const N8N_TIMEOUT_MS = 120000;
 
 const getReportContent = (data) => {
   const payload = Array.isArray(data) ? data[0] : data;
-  const content = payload?.choices?.[0]?.message?.content;
+  const content = payload?.output ?? payload?.choices?.[0]?.message?.content ?? payload?.report;
 
   if (typeof content !== 'string' || !content.trim()) {
     throw new Error('n8n returned an unexpected response');
@@ -84,7 +84,15 @@ app.post('/api/research', researchLimiter, async (req, res) => {
       });
     }
 
-    const reportContent = getReportContent(n8nResponse.data);
+    const n8nPayload = Array.isArray(n8nResponse.data) ? n8nResponse.data[0] : n8nResponse.data;
+
+    if (n8nPayload?.is_valid === false) {
+      return res.status(422).json({
+        error: n8nPayload.output || 'This question does not fit the research workflow.',
+      });
+    }
+
+    const reportContent = getReportContent(n8nPayload);
 
     await pool.query(
       'INSERT INTO research_sessions (question, report) VALUES ($1, $2)',
@@ -110,6 +118,7 @@ app.get('/api/history', async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT, () => {
-  console.log(`Backend running on port ${process.env.PORT}`);
+const port = Number(process.env.PORT) || 3001;
+app.listen(port, () => {
+  console.log(`Backend running on port ${port}`);
 });

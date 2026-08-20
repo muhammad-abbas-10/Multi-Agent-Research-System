@@ -41,8 +41,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
 const isResearchReport = (content) => {
-  if (typeof content !== 'string' || !content.trim()) return false;
-  return /executive summary/i.test(content) && /(model comparison|technical analysis|recommendation)/i.test(content);
+  return typeof content === 'string' && content.trim().length >= 100;
 };
 
 const formatHistoryDate = (timestamp) => {

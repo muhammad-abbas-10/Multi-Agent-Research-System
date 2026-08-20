@@ -125,13 +125,14 @@ Try a comparison-style question, e.g.:
 ## Local setup
 
 1. Clone this repo.
-2. Import `n8n-workflows/*.json` into your own n8n instance (Cloud or self-hosted), and Publish/activate it.
-3. Create a free Groq API key at [console.groq.com](https://console.groq.com) and add it as a Header Auth credential in n8n.
-4. Create a free Tavily API key at [tavily.com](https://tavily.com) for web search grounding.
-5. Create a free Postgres database at [neon.tech](https://neon.tech) and run the schema below.
-6. In `backend/`, create a `.env` with `N8N_WEBHOOK_URL`, `PORT`, and `DATABASE_URL`. Run `npm install` then `npm start`.
-7. In `frontend/`, create a `.env` with `VITE_API_BASE_URL` pointing to your backend. Run `npm install` then `npm run dev`.
-8. Open the frontend, type a comparison-style research question (10-500 characters), and click Research.
+2. Import `n8n workflow/My workflow.json` into your own n8n instance (Cloud or self-hosted).
+3. Add an n8n variable named `TAVILY_API_KEY`, then publish/activate the workflow.
+4. Configure the Google Gemini credentials referenced by the workflow's chat-model nodes.
+5. Create a free Tavily API key at [tavily.com](https://tavily.com) for web search grounding.
+6. Create a free Postgres database at [neon.tech](https://neon.tech) and run the schema below.
+7. In `backend/`, create a `.env` with `N8N_WEBHOOK_URL`, `PORT`, and `DATABASE_URL`. Use the production URL ending in `/webhook/research`, then run `npm install` and `npm start`.
+8. In `frontend/`, create a `.env` with `VITE_API_BASE_URL` pointing to your backend. Run `npm install` then `npm run dev`.
+9. Open the frontend, type a comparison-style research question (10-500 characters), and click Research.
 
 ### Database schema
 
@@ -143,4 +144,3 @@ CREATE TABLE research_sessions (
   created_at TIMESTAMP DEFAULT NOW()
 );
 ```
-
