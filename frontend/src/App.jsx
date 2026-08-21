@@ -41,7 +41,17 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
 const isResearchReport = (content) => {
-  return typeof content === 'string' && content.trim().length >= 100;
+  return typeof content === 'string' && content.trim().length > 0;
+};
+
+const readResponseBody = async (response) => {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: text };
+  }
 };
 
 const formatHistoryDate = (timestamp) => {
@@ -111,7 +121,7 @@ function App() {
     try {
       const response = await fetch(apiUrl('/api/history'));
       if (!response.ok) throw new Error(`History request failed: ${response.status}`);
-      const data = await response.json();
+      const data = await readResponseBody(response);
       setHistory(Array.isArray(data) ? data : []);
     } catch (historyError) {
       console.error('Unable to load research history:', historyError);
@@ -138,7 +148,7 @@ function App() {
     setLoading(true); setError(''); setRateLimited(false); setReport(''); setSubmittedQuestion(normalizedQuestion); setActiveAgent('planner'); setSelectedHistoryId(null);
     try {
       const response = await fetch(apiUrl('/api/research'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question: normalizedQuestion}) });
-      const data = await response.json().catch(() => ({}));
+      const data = await readResponseBody(response);
       if (response.status === 429) {
         setRateLimited(true);
         setError(data.error || 'You have reached the research limit. Please wait before starting another report.');

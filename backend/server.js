@@ -7,7 +7,7 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '16kb' }));
 
 const N8N_TIMEOUT_MS = 120000;
 
@@ -22,9 +22,15 @@ const getReportContent = (data) => {
   return content;
 };
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+const pool = process.env.DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+    })
+  : null;
+
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', database: pool ? 'configured' : 'disabled' });
 });
 
 const researchLimiter = rateLimit({
@@ -94,10 +100,17 @@ app.post('/api/research', researchLimiter, async (req, res) => {
 
     const reportContent = getReportContent(n8nPayload);
 
-    await pool.query(
-      'INSERT INTO research_sessions (question, report) VALUES ($1, $2)',
-      [trimmedQuestion, reportContent]
-    );
+    if (pool) {
+      try {
+        await pool.query(
+          'INSERT INTO research_sessions (question, report) VALUES ($1, $2)',
+          [trimmedQuestion, reportContent]
+        );
+      } catch (databaseError) {
+        // Persistence should not discard a report that n8n completed successfully.
+        console.error('Unable to save research session:', databaseError.message);
+      }
+    }
 
     res.json({ question: trimmedQuestion, report: reportContent });
   } catch (error) {
@@ -107,6 +120,8 @@ app.post('/api/research', researchLimiter, async (req, res) => {
 });
 
 app.get('/api/history', async (req, res) => {
+  if (!pool) return res.json([]);
+
   try {
     const result = await pool.query(
       'SELECT id, question, report, created_at FROM research_sessions ORDER BY created_at DESC LIMIT 20'
